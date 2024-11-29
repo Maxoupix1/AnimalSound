@@ -37,4 +37,4 @@ if uploaded_files is not None:
         sf.write('test/mixed_audio.wav', y_mix, sr1)
         
         # Display the mixed audio file
-        st.audio('mixed_audio.wav', format='audio/wav')
+        st.audio('test/mixed_audio.wav', format='audio/wav')
