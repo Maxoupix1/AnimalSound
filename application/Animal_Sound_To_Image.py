@@ -15,13 +15,13 @@ openai.api_key = config.api_key_openai()
 # Charger le modèle PyTorch une seule fois avec st.cache_resource
 @st.cache_resource(show_spinner=False)
 def load_model(path):
-    model = torch.load(path, map_location=torch.device('cpu'))  # Charger le modèle
-    model.eval()  # Passer le modèle en mode évaluation
-    return model
+        model = torch.load(path, map_location=torch.device('cpu'))  # Charger le modèle
+        model.eval()  # Passer le modèle en mode évaluation
+        return model
 
 # Charger le modèle au démarrage
-model_env = load_model("application\\efficeintnet_66_accuracy.pt")
-# model_animal = load_model("application\\mobilenet_v2-epoch=49-val_loss=1.46.ckpt")
+model_env = load_model("application\\model\\efficeintnet_66_accuracy.pt")
+model_animal = load_model("application\\model\\efficientnet_b04.pt")
 
 env_classes = {'Axe': 0,
                'Chainsaw': 1,
@@ -45,14 +45,17 @@ env_classes = {'Axe': 0,
                 'Wing Flaping' : 19,
                 'Wood Chop' : 20}
 
+animal_classes = {'Bear': 0, 'Cat': 1, 'Chicken': 2, 'Cow': 3, 'Crow': 4, 'Dog': 5, 'Dolphin': 6, 'Donkey': 7, 'Elephant': 8, 'Frog': 9, 'Hen': 10, 'Hiss': 11, 'Horse': 12, 'Tiger': 13, 'Monkey': 14, 'Mouse': 15, 'Pig': 16, 'Rattle': 17, 'Rooster': 18, 'Sheep': 19, 'Whale vocalization': 20}
+
 # Fonction pour générer une image via l'API OpenAI
 def generate_image_with_openai(prompt):
     try:
         # Appel à l'API OpenAI pour générer une image
-        response = openai   .images.generate(
+        response = openai.images.generate(
+            model="dall-e-3",
             prompt=prompt,
             n=1,
-            size="512x512"  # Taille de l'image
+            size="1024x1024"  # Taille de l'image
         )
         # Récupérer l'URL de l'image générée
         image_url = response.data[0].url
@@ -62,7 +65,9 @@ def generate_image_with_openai(prompt):
     except Exception as e:
         st.error(f"Error generating image: {e}")
 
-st.title('Animal Audio to Image and Classification')
+st.set_page_config(page_title='Animal Audio to Image', page_icon=':lion_face:', layout='centered', initial_sidebar_state='collapsed')
+st.title('Animal Audio to Image')
+st.logo('application\\images.png', size="large", icon_image="application\\images.png")
 st.write('This is a simple web app to convert animal audio to an image and predict its class.')
 
 uploaded_files = st.file_uploader("Choose an audio file", type="wav", accept_multiple_files=True)
@@ -73,24 +78,9 @@ if len(uploaded_files) > 0:
         st.audio(uploaded_file, format='audio/wav')
 
     # Cas où l'utilisateur a chargé un seul fichier audio
-    if len(uploaded_files) == 1 and st.button('Convert Audio to Image and Predict Class'):
-        # Générer le Mel spectrogram et faire la prédiction
-        mel_spectrogram = get_mel_spectrogram(uploaded_files[0])
-
-    
-        # Prédire la classe de l'audio
-        predicted_class_env = predict_class(model_env, mel_spectrogram)
-        # predicted_class_animal = predict_class(model_animal, mel_spectrogram)
-
-        class_associated_env = [key for key, value in env_classes.items() if value == predicted_class_env][0]
-        # class_associated_animal = [key for key, value in animal_classes.items() if value == predicted_class_animal][0]
-
-        # Afficher la prédiction
-        st.write(f"The predicted class for this audio is: **{class_associated_env}**")
-
-        # Générer l'image à partir de la classe prédite
-        prompt = f"An depiction of a duck in a realistic style in an environment of {class_associated_env} : the environment need to be clearly identifiable"
-        generate_image_with_openai(prompt)
+    if len(uploaded_files) == 1 :
+        st.warning("Please upload another audio file.")
+        
 
     # Cas où l'utilisateur a chargé deux fichiers audio
     elif len(uploaded_files) == 2 and st.button('Mix Audio Files'):
@@ -101,6 +91,10 @@ if len(uploaded_files) > 0:
         # Vérifier si les taux d'échantillonnage sont identiques
         if sr1 != sr2:
             raise ValueError("Les taux d'échantillonnage des fichiers audio ne correspondent pas.")
+        
+        # Générer et afficher le Mel spectrogram du fichier audio mélangé
+        mel_spectrogram_animal = get_mel_spectrogram(y1, sr1)
+        mel_spectrogram_env = get_mel_spectrogram(y2, sr2)
 
         # Ajuster la longueur des deux signaux si nécessaire
         if len(y1) > len(y2):
@@ -112,20 +106,22 @@ if len(uploaded_files) > 0:
         y_mix = y1 + y2
         sf.write('test/mixed_audio.wav', y_mix, sr1)
         st.audio('test/mixed_audio.wav', format='audio/wav')
-
-        # Générer et afficher le Mel spectrogram du fichier audio mélangé
-        mel_spectrogram = get_mel_spectrogram('test/mixed_audio.wav')
         
         # Prédire la classe du fichier audio mélangé
         
-        predicted_class = predict_class(model_env, mel_spectrogram)
+        predicted_class_animal = predict_class(model_animal, mel_spectrogram_animal)
+        predicted_class_env = predict_class(model_env, mel_spectrogram_env)
+
+        # Faire l'association entre les classes prédites et les noms de classes
+        associated_class_animal = list(animal_classes.keys())[list(animal_classes.values()).index(predicted_class_animal)]
+        associated_class_env = list(env_classes.keys())[list(env_classes.values()).index(predicted_class_env)]
 
         # Afficher la prédiction
-        st.write(f"The predicted class for the mixed audio is: **{predicted_class}**")
+        st.write(f"The predicted class for the mixed audio is: **{associated_class_animal}** and **{associated_class_env}**")
 
         # Générer l'image à partir de la classe prédite
-        prompt = f"An artistic depiction of a {predicted_class} in a creative style"
-        # generate_image_with_openai(prompt)
+        prompt = f"A depiction of a {associated_class_animal} in a creative but realistic style, in an environment of {associated_class_env} where we can explicitly understand the environment in which the animal is located. Do not put any text on the image."  
+        generate_image_with_openai(prompt)
         
 
     # Cas où l'utilisateur a téléchargé plus de deux fichiers
