@@ -20,7 +20,6 @@ from io import BytesIO
 
 def get_mel_spectrogram(y, sr):
     # Charger l'audio avec Librosa
-    # y, sr = librosa.load(filepath)
     mel_spectrogram = librosa.feature.melspectrogram(y=y, sr=sr)
     mel_spectrogram_db = librosa.power_to_db(mel_spectrogram, ref=np.max)
 
